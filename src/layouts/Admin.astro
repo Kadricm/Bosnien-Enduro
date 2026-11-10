@@ -1,0 +1,48 @@
+---
+import '../styles/global.css';
+import { Image } from 'astro:assets';
+import logo from '../assets/images/logos/logo-bosnien-endurotours.png';
+import { ADMIN_LANGS, adminT, type AdminLang } from '../lib/adminI18n';
+
+interface Props {
+  lang: AdminLang;
+  authed: boolean;
+}
+const { lang, authed } = Astro.props;
+const A = adminT(lang);
+const here = new URL(Astro.url);
+const langUrl = (l: AdminLang) => {
+  here.searchParams.set('alang', l);
+  here.searchParams.delete('msg');
+  return here.pathname + here.search;
+};
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{A.title} | bosnien-endurotours</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+  </head>
+  <body class="min-h-dvh bg-sand">
+    <header class="sticky top-0 z-40 bg-ink text-white shadow">
+      <div class="wrap flex h-16 items-center justify-between gap-4">
+        <a href="/admin" class="flex items-center gap-3">
+          <Image src={logo} alt="bosnien-endurotours" width={140} class="h-9 w-auto" />
+          <span class="rounded bg-signal px-2 py-0.5 font-display text-sm font-bold text-ink uppercase">{A.title}</span>
+        </a>
+        <div class="flex items-center gap-3 text-sm">
+          <nav class="flex overflow-hidden rounded ring-1 ring-white/25" aria-label="Language">
+            {ADMIN_LANGS.map((l) => <a href={langUrl(l)} class:list={['px-2 py-1 font-semibold uppercase', l === lang ? 'bg-white text-ink' : 'hover:bg-white/10']}>{l}</a>)}
+          </nav>
+          <a href="/" class="hidden hover:text-signal sm:inline" target="_blank">{A.viewSite} ↗</a>
+          {authed && <form method="post" action="/admin"><button name="logout" value="1" class="underline hover:text-signal">{A.logout}</button></form>}
+        </div>
+      </div>
+    </header>
+    <main><slot /></main>
+  </body>
+</html>

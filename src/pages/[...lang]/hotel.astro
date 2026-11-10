@@ -1,0 +1,39 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { langFromParam } from '../../i18n';
+import { content } from '../../content';
+import hero from '../../assets/images/hotel/garaza-motori.jpg';
+import room from '../../assets/images/hotel/soba-dvokrevetna.jpg';
+import room2 from '../../assets/images/hotel/soba-2.jpg';
+import resto from '../../assets/images/hotel/restoran.jpg';
+import hall from '../../assets/images/hotel/hodnik.jpg';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const C = content(lang).hotel;
+const imgs = [room, resto, hero];
+---
+
+<Base title={C.title} lang={lang} description={C.intro}>
+  <PageHero eyebrow={C.eyebrow} title={C.h1} intro={C.intro} img={hero} />
+
+  <section class="wrap space-y-16 py-16">
+    {
+      C.blocks.map(([h, text], i) => (
+        <div class="grid items-center gap-8 md:grid-cols-2">
+          <Image src={imgs[i]} alt="" widths={[640, 960]} sizes="(min-width:768px) 50vw, 100vw" class:list={['aspect-[4/3] w-full rounded-xl object-cover', i % 2 && 'md:order-2']} />
+          <div>
+            <h2 class="text-4xl font-bold">{h}</h2>
+            <p class="mt-3 text-lg text-ink/75">{text}</p>
+          </div>
+        </div>
+      ))
+    }
+    <div class="grid grid-cols-2 gap-3">
+      <Image src={room2} alt="" widths={[400, 800]} sizes="50vw" class="aspect-[4/3] w-full rounded-lg object-cover" />
+      <Image src={hall} alt="" widths={[400, 800]} sizes="50vw" class="aspect-[4/3] w-full rounded-lg object-cover" />
+    </div>
+  </section>
+</Base>

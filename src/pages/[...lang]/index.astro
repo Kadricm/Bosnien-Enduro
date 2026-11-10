@@ -1,0 +1,214 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import DepartureRow from '../../components/DepartureRow.astro';
+import { listDepartures, seasonLabel } from '../../lib/departures';
+import { tours, settings } from '../../data/seed';
+import { fmtDate, eur } from '../../lib/format';
+import { langFromParam, prefix, t } from '../../i18n';
+
+import hero from '../../assets/images/hero/hero-greben-dolina.jpg';
+import finalImg from '../../assets/images/hero/hero-grupa-jezero.jpg';
+import tour5 from '../../assets/images/gruppe/grupa-pogled.jpg';
+import tour8 from '../../assets/images/hero/hero-ramsko-jezero.jpg';
+import imgHut from '../../assets/images/huette-essen/koliba-sto.jpg';
+import imgFire from '../../assets/images/huette-essen/pec-vatra.jpg';
+import imgGarage from '../../assets/images/hotel/garaza-motori.jpg';
+import imgFleet from '../../assets/images/gruppe/motori-u-nizu.jpg';
+import gWater from '../../assets/images/gelaende/voda-rijecno-korito.jpg';
+import gRock from '../../assets/images/gelaende/kamenjar-uspon.jpg';
+import gForest from '../../assets/images/gelaende/sumski-put.jpg';
+import gDust from '../../assets/images/gelaende/prasina-uspon.jpg';
+import gVillage from '../../assets/images/gelaende/seoski-put.jpg';
+import mod from '../../assets/images/logos/partner-masters-of-dirt.png';
+import xbowl from '../../assets/images/logos/partner-xbowl-bijeli.png';
+import wfl from '../../assets/images/logos/partner-wings-for-life.png';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const T = t(lang);
+const Hm = T.home;
+const p = prefix(lang);
+const season = seasonLabel();
+
+const next = listDepartures({ lang }).filter((d) => d.status === 'free' || d.status === 'few').slice(0, 6);
+const firstFree = next[0];
+
+const tourCards = [
+  { t: tours[0], img: tour5, ...Hm.tour5 },
+  { t: tours[1], img: tour8, ...Hm.tour8 },
+];
+const services = [imgGarage, imgFleet, imgFire, imgHut].map((img, i) => ({ img, title: Hm.services[i][0], text: Hm.services[i][1] }));
+const terrain = [gWater, gRock, gForest, gDust, gVillage].map((img, i) => ({ img, label: Hm.terrain[i] }));
+---
+
+<Base title={T.meta.homeTitle} lang={lang} overlay>
+  <!-- HERO -->
+  <section class="relative isolate flex min-h-[92svh] items-end overflow-hidden bg-ink text-white">
+    <Image src={hero} alt={Hm.heroAlt} widths={[768, 1280, 1920, 2560]} sizes="100vw" loading="eager" fetchpriority="high" class="absolute inset-0 -z-10 size-full object-cover" />
+    <div class="absolute inset-0 -z-10 bg-gradient-to-t from-ink via-ink/40 to-ink/60"></div>
+    <div class="wrap pt-36 pb-14 sm:pb-20">
+      {
+        firstFree && (
+          <a href={`${p}/buchen?termin=${firstFree.code}`} class="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-sm ring-1 ring-white/25 backdrop-blur hover:bg-white/20">
+            <span class="size-2 rounded-full bg-ok" />
+            {Hm.nextFree}: {fmtDate(firstFree.start)} · {firstFree.status === 'few' ? firstFree.label : Hm.placesFree(firstFree.freePlaces)}
+          </a>
+        )
+      }
+      <h1 class="max-w-4xl text-6xl leading-[0.9] font-bold sm:text-8xl">{Hm.h1a}<br /><span class="text-signal">{Hm.h1b}</span></h1>
+      <p class="mt-5 max-w-2xl text-lg text-white/85">{Hm.sub}</p>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a href={`${p}/termine`} class="btn-primary">{Hm.ctaDate}</a>
+        <a href="#touren" class="btn-ghost">{Hm.ctaTours}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUST -->
+  <section class="bg-coal text-white">
+    <div class="wrap grid grid-cols-2 gap-6 py-8 sm:grid-cols-4">
+      {
+        Hm.trust.map(([n, l]) => (
+          <div>
+            <p class="font-display text-4xl font-bold text-signal sm:text-5xl">{n}</p>
+            <p class="text-sm text-white/70">{l}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- TOUREN -->
+  <section id="touren" class="wrap scroll-mt-28 py-16 sm:py-24">
+    <p class="eyebrow">{Hm.toursEyebrow}</p>
+    <h2 class="mt-2 text-5xl font-bold">{Hm.toursH2}</h2>
+    <div class="mt-8 grid gap-6 md:grid-cols-2">
+      {
+        tourCards.map(({ t: tr, img, level, text }) => (
+          <article class="group overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-ink/5">
+            <a href={`${p}/touren/${tr.slug}`} class="relative block aspect-[16/10] overflow-hidden">
+              <Image src={img} alt="" widths={[640, 960]} sizes="(min-width: 768px) 50vw, 100vw" class="size-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <span class="absolute top-4 left-4 rounded bg-ink/80 px-3 py-1 font-display text-lg uppercase text-white">{Hm.ridingDays(tr.ridingDays)}</span>
+            </a>
+            <div class="p-6">
+              <h3 class="text-4xl font-bold"><a href={`${p}/touren/${tr.slug}`} class="hover:text-signal-dark">{T.tourName[tr.id]}</a></h3>
+              <p class="mt-1 text-sm text-ink/60">{Hm.tourMeta(tr.days, tr.nights, level)}</p>
+              <p class="mt-3 text-ink/80">{text}</p>
+              <dl class="mt-5 grid grid-cols-2 gap-3">
+                <div class="rounded-lg bg-sand p-3">
+                  <dt class="text-xs text-ink/60">{Hm.ownBike}</dt>
+                  <dd class="font-display text-3xl font-bold">{eur(tr.priceOwnBike, lang)}</dd>
+                </div>
+                <div class="rounded-lg bg-sand p-3">
+                  <dt class="text-xs text-ink/60">{Hm.rentalBike}</dt>
+                  <dd class="font-display text-3xl font-bold">{eur(tr.priceRentalBike, lang)}</dd>
+                </div>
+              </dl>
+              <p class="mt-3 text-xs text-ink/60">{Hm.included}</p>
+              <a href={`${p}/termine?tour=${tr.id}`} class="btn-primary mt-5 w-full">{Hm.checkAvail}</a>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- NÄCHSTE TERMINE -->
+  <section class="bg-white py-16 sm:py-24">
+    <div class="wrap">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="eyebrow">{Hm.nextEyebrow}</p>
+          <h2 class="mt-2 text-5xl font-bold">{Hm.nextH2}</h2>
+        </div>
+        <a href={`${p}/termine`} class="font-semibold text-signal-dark hover:underline">{Hm.allDates(season)}</a>
+      </div>
+      <ul class="mt-6">
+        {next.map((d) => <DepartureRow d={d} lang={lang} />)}
+      </ul>
+    </div>
+  </section>
+
+  <!-- ALLES AUS EINER HAND -->
+  <section class="bg-ink py-16 text-white sm:py-24">
+    <div class="wrap">
+      <p class="eyebrow">{Hm.servicesEyebrow}</p>
+      <h2 class="mt-2 max-w-3xl text-5xl font-bold">{Hm.servicesH2}</h2>
+      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          services.map((s) => (
+            <div>
+              <Image src={s.img} alt="" widths={[400, 640]} sizes="(min-width:1024px) 25vw, (min-width:640px) 50vw, 100vw" class="aspect-[4/3] w-full rounded-lg object-cover" />
+              <h3 class="mt-4 text-2xl font-bold">{s.title}</h3>
+              <p class="mt-1 text-sm text-white/70">{s.text}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- GELÄNDE -->
+  <section class="wrap py-16 sm:py-24">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p class="eyebrow">{Hm.terrainEyebrow}</p>
+        <h2 class="mt-2 text-5xl font-bold">{Hm.terrainH2}</h2>
+      </div>
+      <a href={`${p}/galerie`} class="font-semibold text-signal-dark hover:underline">{lang === 'en' ? 'Gallery →' : 'Galerie →'}</a>
+    </div>
+    <div class="mt-8 grid auto-rows-[160px] grid-cols-2 gap-3 sm:auto-rows-[200px] md:grid-cols-4">
+      {
+        terrain.map((g, i) => (
+          <figure class={`relative overflow-hidden rounded-lg ${i === 0 ? 'col-span-2 row-span-2' : ''}`}>
+            <Image src={g.img} alt={g.label} widths={[400, 800]} sizes={i === 0 ? '(min-width:768px) 50vw, 100vw' : '(min-width:768px) 25vw, 50vw'} class="size-full object-cover" />
+            <figcaption class="absolute bottom-0 left-0 bg-ink/80 px-3 py-1 font-display text-lg uppercase text-white">{g.label}</figcaption>
+          </figure>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- SO EINFACH -->
+  <section class="bg-stone py-16 sm:py-24">
+    <div class="wrap">
+      <p class="eyebrow">{Hm.stepsEyebrow}</p>
+      <h2 class="mt-2 text-5xl font-bold">{Hm.stepsH2}</h2>
+      <ol class="mt-8 grid gap-6 md:grid-cols-3">
+        {
+          Hm.steps(settings.depositAmount).map(([st, d], i) => (
+            <li class="card">
+              <span class="font-display text-6xl font-bold text-signal">{i + 1}</span>
+              <h3 class="mt-2 text-2xl font-bold">{st}</h3>
+              <p class="mt-1 text-ink/70">{d}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <!-- PARTNER -->
+  <section class="bg-coal py-10">
+    <div class="wrap flex flex-wrap items-center justify-center gap-x-12 gap-y-6 opacity-80">
+      <Image src={mod} alt="Masters of Dirt" height={64} class="h-16 w-auto" />
+      <Image src={xbowl} alt="X-Bowl Offroad Arena" height={48} class="h-12 w-auto" />
+      <Image src={wfl} alt="Wings for Life" height={64} class="h-16 w-auto" />
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="relative isolate overflow-hidden py-24 text-white sm:py-32">
+    <Image src={finalImg} alt="" widths={[768, 1280, 1920]} sizes="100vw" class="absolute inset-0 -z-10 size-full object-cover" />
+    <div class="absolute inset-0 -z-10 bg-ink/65"></div>
+    <div class="wrap text-center">
+      <h2 class="text-5xl font-bold sm:text-7xl">{Hm.finalH2}</h2>
+      <p class="mx-auto mt-4 max-w-xl text-lg text-white/85">{Hm.finalText(settings.depositAmount, season)}</p>
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a href={`${p}/termine`} class="btn-primary">{Hm.ctaDate}</a>
+        <a href="tel:+436601877869" class="btn-ghost">+43 660 1877869</a>
+      </div>
+    </div>
+  </section>
+</Base>

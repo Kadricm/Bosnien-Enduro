@@ -1,0 +1,112 @@
+---
+import Base from '../../layouts/Base.astro';
+import DepartureRow from '../../components/DepartureRow.astro';
+import PageHero from '../../components/PageHero.astro';
+import { listDepartures, seasonLabel } from '../../lib/departures';
+import { langFromParam, prefix, t } from '../../i18n';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const T = t(lang);
+const L = T.termine;
+const season = seasonLabel();
+
+const tr = Number(Astro.url.searchParams.get('tour'));
+const tour = tr === 5 || tr === 8 ? tr : undefined;
+const onlyFree = Astro.url.searchParams.get('frei') === '1';
+let deps = listDepartures({ tour, lang });
+if (onlyFree) deps = deps.filter((d) => d.status === 'free' || d.status === 'few');
+
+const months = new Map<string, typeof deps>();
+for (const d of deps) {
+  const key = new Date(d.start + 'T12:00:00Z').toLocaleDateString(T.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  months.set(key, [...(months.get(key) ?? []), d]);
+}
+const base = `${prefix(lang)}/termine`;
+const link = (q: Record<string, string | undefined>) => {
+  const s = new URLSearchParams();
+  const next = { tour: tour ? String(tour) : undefined, frei: onlyFree ? '1' : undefined, ...q };
+  for (const [k, v] of Object.entries(next)) if (v) s.set(k, v);
+  return s.toString() ? `${base}?${s}` : base;
+};
+const chip = (active: boolean) => `rounded-full px-4 py-1.5 text-sm font-semibold ring-1 ${active ? 'bg-ink text-white ring-ink' : 'bg-white ring-ink/15 hover:ring-ink/40'}`;
+---
+
+<Base title={T.meta.termineTitle(season)} lang={lang}>
+  <PageHero eyebrow={L.eyebrow(season)} title={L.h1} intro={L.intro} />
+
+  <section class="wrap py-8">
+    <div class="mb-6 flex flex-wrap gap-2">
+      <a class={chip(!tour)} href={link({ tour: undefined })}>{L.all}</a>
+      <a class={chip(tour === 5)} href={link({ tour: '5' })}>{T.tourName[5]}</a>
+      <a class={chip(tour === 8)} href={link({ tour: '8' })}>{T.tourName[8]}</a>
+      <a class={chip(onlyFree)} href={link({ frei: onlyFree ? undefined : '1' })}>{L.onlyFree}</a>
+    </div>
+
+    {deps.length === 0 && <p class="card">{L.none}</p>}
+
+    {
+      [...months].map(([month, list]) => (
+        <div class="mb-8">
+          <h2 class="mb-1 text-2xl font-bold text-earth">{month}</h2>
+          <ul class="card !py-0">
+            {list.map((d) => (
+              <DepartureRow d={d} lang={lang} tour={tour} />
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+
+    <div class="card flex flex-wrap items-center justify-between gap-4 bg-ink text-white">
+      <div>
+        <p class="font-display text-2xl uppercase">{L.groupH}</p>
+        <p class="text-white/70">{L.groupText}</p>
+      </div>
+      <a class="btn-primary" href={`mailto:office@bosnien-endurotours.com?subject=${encodeURIComponent(L.groupSubject)}`}>{L.groupCta}</a>
+    </div>
+  </section>
+
+  <dialog id="waitlist" data-lang={lang} data-ok={L.wlOk} data-err={L.wlErr} class="m-auto w-[min(28rem,calc(100%-2rem))] rounded-xl p-0 backdrop:bg-ink/60">
+    <form id="wl-form" class="flex flex-col gap-3 p-6">
+      <h2 class="text-3xl font-bold">{L.wlH} <span id="wl-code"></span></h2>
+      <p class="text-sm text-ink/70">{L.wlText}</p>
+      <label class="field">{L.name}<input class="input" name="name" required autocomplete="name" /></label>
+      <label class="field">{L.email}<input class="input" name="email" type="email" required autocomplete="email" /></label>
+      <label class="field">{L.persons}<input class="input" name="persons" type="number" min="1" max="17" value="1" required /></label>
+      <p id="wl-msg" class="text-sm" role="status"></p>
+      <div class="flex gap-2">
+        <button class="btn-primary flex-1" type="submit">{L.wlSubmit}</button>
+        <button class="btn-ghost" type="button" data-close>{L.close}</button>
+      </div>
+    </form>
+  </dialog>
+</Base>
+
+<script>
+  const dlg = document.getElementById('waitlist') as HTMLDialogElement;
+  const form = document.getElementById('wl-form') as HTMLFormElement;
+  const msg = document.getElementById('wl-msg')!;
+  let code = '';
+  document.querySelectorAll<HTMLButtonElement>('[data-waitlist]').forEach((b) =>
+    b.addEventListener('click', () => {
+      code = b.dataset.waitlist!;
+      document.getElementById('wl-code')!.textContent = code;
+      msg.textContent = '';
+      dlg.showModal();
+    }),
+  );
+  dlg.querySelector('[data-close]')!.addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    const res = await fetch('/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, departureCode: code, lang: dlg.dataset.lang }),
+    });
+    const j = await res.json().catch(() => ({}));
+    msg.textContent = res.ok ? dlg.dataset.ok! : j.error || dlg.dataset.err!;
+    if (res.ok) form.reset();
+  });
+</script>

@@ -1,0 +1,58 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { langFromParam } from '../../i18n';
+import { content } from '../../content';
+import hero from '../../assets/images/gruppe/grupa-livada.jpg';
+import ratko from '../../assets/images/team/ratko.jpg';
+import jakov from '../../assets/images/team/jakov.jpg';
+import kolega from '../../assets/images/team/kolega.jpg';
+import cakija from '../../assets/images/team/cakija.jpg';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const C = content(lang).about;
+// shortcut: Zuordnung Foto ↔ Person aus der Reihenfolge der alten Wix-Seite geraten – mit Dario prüfen.
+const photos: Record<string, ImageMetadata> = { ratko, jakov, kolega, cakija };
+---
+
+<Base title={C.title} lang={lang} description={C.intro}>
+  <PageHero eyebrow={C.eyebrow} title={C.h1} intro={C.intro} img={hero} />
+
+  <section id="team" class="wrap scroll-mt-28 py-16">
+    <h2 class="text-5xl font-bold">{C.teamH}</h2>
+    <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        C.team.map(([key, name, role, text]) => (
+          <article class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-ink/5">
+            <Image src={photos[key]} alt={name} widths={[300, 600]} sizes="(min-width:1024px) 25vw, 50vw" class="aspect-square w-full object-cover object-top" />
+            <div class="p-5">
+              <p class="text-xs font-semibold tracking-widest text-signal-dark uppercase">{role}</p>
+              <h3 class="mt-1 text-2xl font-bold">{name}</h3>
+              <p class="mt-2 text-sm text-ink/70">{text}</p>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section id="geschichte" class="scroll-mt-28 bg-ink py-16 text-white">
+    <div class="wrap">
+      <h2 class="text-5xl font-bold">{C.historyH}</h2>
+      <ol class="mt-10 border-l-2 border-signal/40">
+        {
+          C.history.map(([year, h, text]) => (
+            <li class="relative pb-10 pl-8 last:pb-0 sm:pl-12">
+              <span class="absolute top-2 -left-[9px] size-4 rounded-full border-4 border-ink bg-signal" />
+              <p class="font-display text-4xl font-bold text-signal">{year}</p>
+              <h3 class="mt-1 text-2xl font-bold">{h}</h3>
+              <p class="mt-1 max-w-2xl text-white/75">{text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+</Base>

@@ -1,0 +1,269 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { isAdmin, login, logout } from '../../lib/auth';
+import { listDepartures } from '../../lib/departures';
+import { read } from '../../lib/db';
+import { eur, fmtDate } from '../../lib/format';
+import { adminLang, adminT } from '../../lib/adminI18n';
+
+const lang = adminLang(Astro.url, Astro.cookies);
+const A = adminT(lang);
+
+let loginError = false;
+if (Astro.request.method === 'POST') {
+  const f = await Astro.request.formData();
+  if (f.get('logout')) {
+    logout(Astro.cookies);
+    return Astro.redirect('/admin', 303);
+  }
+  if (login(Astro.cookies, String(f.get('password') ?? ''))) return Astro.redirect('/admin', 303);
+  loginError = true;
+}
+const authed = isAdmin(Astro.cookies);
+
+const filter = Astro.url.searchParams.get('status') ?? 'active';
+const allDeps = authed ? listDepartures() : [];
+const depYears = [...new Set(allDeps.map((d) => d.start.slice(0, 4)))];
+const year = depYears.includes(Astro.url.searchParams.get('y') ?? '') ? Astro.url.searchParams.get('y')! : depYears[0];
+const deps = allDeps.filter((d) => d.start.startsWith(year ?? ''));
+const all = authed
+  ? read((db) => ({ bookings: [...db.bookings].reverse(), waitlist: db.waitlist, years: [...new Set(db.departures.map((d) => Number(d.start.slice(0, 4))))].sort() }))
+  : { bookings: [], waitlist: [], years: [] as number[] };
+const bookings = all.bookings.filter((b) => (filter === 'all' ? true : filter === 'active' ? b.status === 'confirmed' || b.status === 'pending_payment' : b.status === filter));
+const attention = all.bookings.filter((b) => b.needsAttention);
+const used = (code: string) => {
+  const list = all.bookings.filter((b) => b.departureCode === code && (b.status === 'confirmed' || b.status === 'pending_payment'));
+  return {
+    places: list.reduce((s, b) => s + b.participants.length, 0),
+    rental: list.reduce((s, b) => s + b.participants.filter((p) => p.bike === 'rental').length, 0),
+    pending: list.filter((b) => b.status === 'pending_payment').length,
+    count: list.length,
+  };
+};
+const depLabel = (d: (typeof deps)[number]) => (d.status === 'few' ? A.depStatus.few(d.freePlaces) : A.depStatus[d.status]);
+const statusCls: Record<string, string> = { confirmed: 'badge-free', pending_payment: 'badge-few', expired: 'badge-full', cancelled: 'badge-full' };
+const method = { card: A.card, bank: A.bank, manual: A.manual };
+const tab = (s: string) => `rounded-full px-3 py-1 text-sm font-semibold ring-1 ${filter === s ? 'bg-ink text-white ring-ink' : 'ring-ink/15 bg-white'}`;
+const back = `/admin?status=${filter}${year ? `&y=${year}` : ''}`;
+const dt = (iso: string) => new Date(iso).toLocaleString(A.locale, { dateStyle: 'short', timeStyle: 'short' });
+
+// Rückmeldung nach einer Aktion (?msg=…)
+const rawMsg = Astro.url.searchParams.get('msg') ?? '';
+const [mKey, mArg] = rawMsg.split(/:(.*)/s);
+const flash =
+  mKey === 'copied' ? { ok: true, text: A.msg.copied(Number(mArg)) }
+  : mKey === 'booking_ok' ? { ok: true, text: A.msg.booking_ok(mArg) }
+  : mKey === 'err' ? { ok: false, text: mArg }
+  : mKey === 'ok' ? { ok: true, text: A.msg.ok }
+  : mKey in A.msg ? { ok: false, text: (A.msg as any)[mKey] as string }
+  : null;
+const nextYear = all.years.length ? all.years[all.years.length - 1] : new Date().getFullYear();
+---
+
+<Admin lang={lang} authed={authed}>
+  {
+    !authed ? (
+      <section class="wrap max-w-sm py-16">
+        <h1 class="text-4xl font-bold">{A.title}</h1>
+        <form method="post" class="card mt-6 space-y-3">
+          <label class="field">
+            {A.password}
+            <input class="input" type="password" name="password" required autofocus autocomplete="current-password" />
+          </label>
+          {loginError && <p class="text-sm text-red-700">{A.wrongPw}</p>}
+          <button class="btn-primary w-full">{A.login}</button>
+        </form>
+      </section>
+    ) : (
+      <section class="wrap space-y-10 py-8">
+        {flash && <p class:list={['rounded-lg p-3 text-sm font-medium ring-1', flash.ok ? 'bg-ok/10 text-[#1f7a37] ring-ok/30' : 'bg-red-50 text-red-800 ring-red-200']} role="status">{flash.text}</p>}
+
+        {attention.length > 0 && (
+          <div class="card bg-red-50 ring-red-200">
+            <p class="font-display text-2xl font-bold uppercase text-red-800">{A.attention}</p>
+            {attention.map((b) => (
+              <form method="post" action="/api/admin" class="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                <span class="font-mono font-bold">{b.ref}</span> <span>{A.attn[b.needsAttention!] ?? b.needsAttention}</span>
+                <input type="hidden" name="ref" value={b.ref} />
+                <input type="hidden" name="back" value={back} />
+                <button name="action" value="clear_flag" class="underline">{A.done}</button>
+              </form>
+            ))}
+          </div>
+        )}
+
+        <!-- REZERVACIJE -->
+        <div>
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <h2 class="mr-3 text-3xl font-bold">{A.bookings}</h2>
+            {['active', 'pending_payment', 'confirmed', 'expired', 'all'].map((s) => <a class={tab(s)} href={`/admin?status=${s}`}>{A.tabs[s]}</a>)}
+          </div>
+          <div class="card overflow-x-auto !p-0">
+            <table class="w-full min-w-[860px] text-left text-sm">
+              <thead class="bg-sand text-xs uppercase text-ink/60">
+                <tr>{Object.values(A.cols).map((c) => <th class="p-3">{c}</th>)}</tr>
+              </thead>
+              <tbody>
+                {bookings.length === 0 && <tr><td colspan="7" class="p-4 text-ink/60">{A.none}</td></tr>}
+                {bookings.map((b) => (
+                  <tr class="border-t border-ink/5 align-top">
+                    <td class="p-3 font-mono text-xs">{b.ref}<br /><span class="text-ink/50">{dt(b.createdAt)}</span></td>
+                    <td class="p-3">{b.departureCode} · {b.tourId}d</td>
+                    <td class="p-3">{b.contact.firstName} {b.contact.lastName}<br /><span class="text-ink/60">{b.contact.email}<br />{b.contact.phone}</span></td>
+                    <td class="p-3">{b.participants.length} / {b.participants.filter((p) => p.bike === 'rental').length}</td>
+                    <td class="p-3">{eur(b.quote.total)}<br /><span class="text-ink/60">{eur(b.quote.deposit)} · {method[b.paymentMethod]}</span></td>
+                    <td class="p-3">
+                      <span class={statusCls[b.status]}>{A.status[b.status]}</span>
+                      {b.status === 'pending_payment' && <p class="mt-1 text-xs text-ink/50">{b.expiresAt ? `${A.until} ${dt(b.expiresAt)}` : A.noExpiry}</p>}
+                    </td>
+                    <td class="p-3">
+                      <form method="post" action="/api/admin" class="flex flex-col items-start gap-1">
+                        <input type="hidden" name="ref" value={b.ref} />
+                        <input type="hidden" name="back" value={back} />
+                        {b.paymentStatus !== 'paid' && b.status !== 'cancelled' && <button name="action" value="mark_paid" class="font-semibold text-[#1f7a37] underline">{A.markPaid}</button>}
+                        {((b.status === 'pending_payment' && b.expiresAt) || b.status === 'expired') && <button name="action" value="extend" class="underline">{A.extend}</button>}
+                        {b.status !== 'cancelled' && <button name="action" value="cancel" class="text-red-700 underline" data-confirm={A.cancelConfirm}>{A.cancel}</button>}
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RUČNA REZERVACIJA -->
+        <details class="card" open={mKey === 'err' || mKey === 'booking_ok'}>
+          <summary class="cursor-pointer font-display text-2xl font-bold uppercase">+ {A.manualH}</summary>
+          <p class="mt-2 text-sm text-ink/60">{A.manualHelp}</p>
+          <form method="post" action="/api/admin" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <input type="hidden" name="action" value="manual_booking" />
+            <input type="hidden" name="back" value={back} />
+            <label class="field">{A.cols.date}
+              <select class="input" name="code" required>{allDeps.filter((d) => d.status !== 'closed').map((d) => <option value={d.code}>{d.code} · {fmtDate(d.start)} ({depLabel(d)})</option>)}</select>
+            </label>
+            <label class="field">{A.tour}
+              <select class="input" name="tourId"><option value="5">5</option><option value="8">8</option></select>
+            </label>
+            <label class="field">{A.own}<input class="input" type="number" name="own" min="0" max="17" value="1" /></label>
+            <label class="field">{A.rentalCount}<input class="input" type="number" name="rental" min="0" max="17" value="0" /></label>
+            <label class="field">{A.firstName}<input class="input" name="firstName" required /></label>
+            <label class="field">{A.lastName}<input class="input" name="lastName" required /></label>
+            <label class="field">{A.phone}<input class="input" name="phone" type="tel" /></label>
+            <label class="field">{A.email}<input class="input" name="email" type="email" /></label>
+            <label class="field">{A.singleRooms}<input class="input" type="number" name="singleRooms" min="0" max="17" value="0" /></label>
+            <label class="field sm:col-span-2">{A.notes}<input class="input" name="notes" /></label>
+            <label class="flex items-center gap-2 self-end pb-3 text-sm font-medium"><input type="checkbox" name="paid" class="size-4 accent-signal" /> {A.paidAlready}</label>
+            <button class="btn-primary sm:col-span-2 lg:col-span-4">{A.save}</button>
+          </form>
+        </details>
+
+        <!-- TERMINI -->
+        <div>
+          <div class="mb-3 flex flex-wrap items-center gap-2">
+            <h2 class="mr-3 text-3xl font-bold">{A.deps}</h2>
+            {depYears.map((y) => <a class={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ${y === year ? 'bg-ink text-white ring-ink' : 'ring-ink/15 bg-white'}`} href={`/admin?status=${filter}&y=${y}`}>{y}</a>)}
+          </div>
+          <div class="card overflow-x-auto !p-0">
+            <table class="w-full min-w-[980px] text-left text-sm">
+              <thead class="bg-sand text-xs uppercase text-ink/60">
+                <tr>{Object.values(A.depCols).map((c) => <th class="p-3">{c}</th>)}</tr>
+              </thead>
+              <tbody>
+                {deps.map((d) => {
+                  const u = used(d.code);
+                  const pp = Math.min(100, (u.places / Math.max(1, d.capacityPlaces)) * 100);
+                  const pr = Math.min(100, (u.rental / Math.max(1, d.capacityRentalBikes)) * 100);
+                  return (
+                    <tr class="border-t border-ink/5">
+                      <td class="p-3 whitespace-nowrap"><b>{d.code}</b> · {fmtDate(d.start)} – {fmtDate(d.end)}<br /><span class="text-xs text-ink/50">{d.tours.join('/')}d</span></td>
+                      <td class="p-3"><div class="h-2 w-28 rounded bg-ink/10"><div class="h-2 rounded bg-signal" style={`width:${pp}%`} /></div><span class="text-xs">{u.places}/{d.capacityPlaces}{u.pending ? ` · ${A.open(u.pending)}` : ''}</span></td>
+                      <td class="p-3"><div class="h-2 w-28 rounded bg-ink/10"><div class="h-2 rounded bg-earth" style={`width:${pr}%`} /></div><span class="text-xs">{u.rental}/{d.capacityRentalBikes}</span></td>
+                      <td class="p-3"><span class={`badge-${d.status}`}>{depLabel(d)}</span></td>
+                      <td class="p-3">
+                        <form method="post" action="/api/admin" class="flex items-center gap-1">
+                          <input type="hidden" name="action" value="dep_capacity" /><input type="hidden" name="code" value={d.code} /><input type="hidden" name="back" value={back} />
+                          <input class="input !w-16 !px-2 !py-1" name="places" type="number" min="0" max="60" value={d.capacityPlaces} aria-label={A.places} />
+                          <input class="input !w-16 !px-2 !py-1" name="rental" type="number" min="0" max="40" value={d.capacityRentalBikes} aria-label={A.rentalBikes} />
+                          <button class="underline">OK</button>
+                        </form>
+                      </td>
+                      <td class="p-3">
+                        <form method="post" action="/api/admin">
+                          <input type="hidden" name="action" value="dep_status" /><input type="hidden" name="code" value={d.code} /><input type="hidden" name="back" value={back} />
+                          <select class="input !w-auto !py-1" name="value" data-autosubmit>
+                            <option value="" selected={!d.manualStatus}>{A.auto}</option>
+                            <option value="full" selected={d.manualStatus === 'full'}>{A.full}</option>
+                            <option value="closed" selected={d.manualStatus === 'closed'}>{A.closed}</option>
+                          </select>
+                        </form>
+                      </td>
+                      <td class="p-3 whitespace-nowrap">
+                        {u.count > 0 && <a class="mr-3 font-semibold text-signal-dark underline" href={`/api/admin/export?code=${d.code}`}>{A.exportCsv}</a>}
+                        {u.count === 0 && (
+                          <form method="post" action="/api/admin" class="inline">
+                            <input type="hidden" name="action" value="dep_delete" /><input type="hidden" name="code" value={d.code} /><input type="hidden" name="back" value={back} />
+                            <button class="text-red-700 underline" data-confirm={A.delConfirm}>{A.del}</button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <form method="post" action="/api/admin" class="card space-y-3">
+              <p class="font-display text-2xl font-bold uppercase">+ {A.addDep}</p>
+              <input type="hidden" name="action" value="dep_add" /><input type="hidden" name="back" value={back} />
+              <div class="grid grid-cols-3 gap-3">
+                <label class="field">{A.code}<input class="input" name="code" required maxlength="10" placeholder="801" /></label>
+                <label class="field">{A.start}<input class="input" type="date" name="start" required /></label>
+                <label class="field">{A.end}<input class="input" type="date" name="end" required /></label>
+                <fieldset class="field">{A.tours}
+                  <span class="flex gap-3 py-2.5 font-normal">
+                    <label class="flex items-center gap-1"><input type="checkbox" name="tours" value="5" checked class="accent-signal" /> 5</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" name="tours" value="8" class="accent-signal" /> 8</label>
+                  </span>
+                </fieldset>
+                <label class="field">{A.places}<input class="input" type="number" name="places" min="0" max="60" value="17" required /></label>
+                <label class="field">{A.rentalBikes}<input class="input" type="number" name="rental" min="0" max="40" value="20" required /></label>
+              </div>
+              <button class="btn-primary w-full">{A.add}</button>
+            </form>
+
+            <form method="post" action="/api/admin" class="card space-y-3">
+              <p class="font-display text-2xl font-bold uppercase">{A.copySeason}</p>
+              <p class="text-sm text-ink/60">{A.copyHelp}</p>
+              <input type="hidden" name="action" value="copy_season" /><input type="hidden" name="back" value={back} />
+              <label class="field max-w-40">{A.from}
+                <select class="input" name="year">{all.years.map((y) => <option selected={y === nextYear}>{y}</option>)}</select>
+              </label>
+              <button class="btn-primary w-full">{A.copy}</button>
+            </form>
+          </div>
+        </div>
+
+        {all.waitlist.length > 0 && (
+          <div>
+            <h2 class="mb-3 text-3xl font-bold">{A.waitlist}</h2>
+            <ul class="card space-y-1 text-sm">
+              {all.waitlist.map((w) => <li><b>{w.departureCode}</b> · {w.name} · {w.email} · {w.persons} {A.pers}</li>)}
+            </ul>
+          </div>
+        )}
+      </section>
+    )
+  }
+</Admin>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-confirm]').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      if (!confirm(b.dataset.confirm!)) e.preventDefault();
+    }),
+  );
+  document.querySelectorAll<HTMLSelectElement>('[data-autosubmit]').forEach((s) => s.addEventListener('change', () => s.form!.submit()));
+</script>

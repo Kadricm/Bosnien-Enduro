@@ -1,0 +1,38 @@
+---
+import type { DepartureView } from '../lib/departures';
+import { fmtDate, weekday } from '../lib/format';
+import { prefix, t, type Lang } from '../i18n';
+
+interface Props {
+  d: DepartureView;
+  lang: Lang;
+  tour?: 5 | 8;
+}
+const { d, lang, tour } = Astro.props;
+const R = t(lang).row;
+const bookable = d.status === 'free' || d.status === 'few';
+const tr = tour ?? (d.tours.includes(8) ? 8 : 5);
+---
+
+<li class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-ink/10 py-4 last:border-0">
+  <span class="w-12 font-display text-2xl font-bold text-ink/40">{d.code}</span>
+  <div class="min-w-40 flex-1">
+    <p class="font-semibold">{weekday(d.start, lang)} {fmtDate(d.start)} – {weekday(d.end, lang)} {fmtDate(d.end)}</p>
+    <p class="text-sm text-ink/60">{d.tours.length === 2 ? R.either : R.only5}</p>
+  </div>
+  <div class="flex flex-wrap gap-1.5">
+    <span class={`badge-${d.status}`}>{d.label}</span>
+    {d.rentalWarning && <span class="badge-warn">{d.rentalWarning}</span>}
+  </div>
+  {
+    bookable ? (
+      <a href={`${prefix(lang)}/buchen?termin=${d.code}&tour=${tr}`} class="btn-primary ml-auto !px-4 !py-2 !text-base">
+        {R.book}
+      </a>
+    ) : (
+      <button type="button" data-waitlist={d.code} class="btn-ghost ml-auto !px-4 !py-2 !text-base text-ink/70">
+        {R.waitlist}
+      </button>
+    )
+  }
+</li>

@@ -1,0 +1,54 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { langFromParam, prefix } from '../../i18n';
+import { content } from '../../content';
+import hero from '../../assets/images/gruppe/motori-u-nizu.jpg';
+import b1 from '../../assets/images/verleih/ktm-studio-1.jpg';
+import b2 from '../../assets/images/verleih/ktm-studio-2.jpg';
+import b3 from '../../assets/images/verleih/ktm-studio-3.jpg';
+import gearImg from '../../assets/images/hotel/garaza-motori.jpg';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const C = content(lang).rental;
+// shortcut: KTM-Pressefotos (Rechte bei KTM) – durch eigene Fotos der Flotte ersetzen, sobald Dario sie schickt.
+const bikeImgs = [b2, b1, b3, b1];
+---
+
+<Base title={C.title} lang={lang} description={C.intro}>
+  <PageHero eyebrow={C.eyebrow} title={C.h1} intro={C.intro} img={hero} />
+
+  <section class="wrap py-16">
+    <ul class="mb-10 flex flex-wrap gap-3">
+      {C.facts.map((f) => <li class="rounded-full bg-white px-4 py-2 text-sm font-semibold ring-1 ring-ink/10">✓ {f}</li>)}
+    </ul>
+    <h2 class="text-4xl font-bold">{C.bikesH}</h2>
+    <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        C.bikes.map(([name, stroke, text], i) => (
+          <article class="card flex flex-col">
+            <Image src={bikeImgs[i]} alt={name} widths={[400, 600]} sizes="(min-width:1024px) 25vw, 50vw" class="aspect-[3/2] w-full object-contain" />
+            <p class="mt-3 text-xs font-semibold tracking-widest text-signal-dark uppercase">{stroke}</p>
+            <h3 class="text-2xl font-bold">{name}</h3>
+            <p class="mt-1 text-sm text-ink/70">{text}</p>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="bg-ink py-16 text-white">
+    <div class="wrap grid items-center gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow">{C.eyebrow}</p>
+        <h2 class="mt-2 text-5xl font-bold">{C.gearH}</h2>
+        <p class="mt-4 text-white/80">{C.gearText}</p>
+        <ul class="mt-6 flex flex-wrap gap-2">{C.gearItems.map((g) => <li class="rounded border border-white/20 px-3 py-1 text-sm">{g}</li>)}</ul>
+        <a href={`${prefix(lang)}/buchen`} class="btn-primary mt-8">{C.cta}</a>
+      </div>
+      <Image src={gearImg} alt="" widths={[640, 960]} sizes="(min-width:1024px) 50vw, 100vw" class="aspect-[4/3] w-full rounded-xl object-cover" />
+    </div>
+  </section>
+</Base>

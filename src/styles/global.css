@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@import '@fontsource/barlow-condensed/600.css';
+@import '@fontsource/barlow-condensed/700.css';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --color-ink: #141414;
+  --color-coal: #1e1e1e;
+  --color-coal-2: #2a2a2a;
+  --color-earth: #5b4a3a;
+  --color-stone: #d9d4cc;
+  --color-sand: #f2efea;
+  --color-signal: #ff6a13;
+  --color-signal-dark: #d9520a;
+  --color-ok: #3fae5a;
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply bg-sand text-ink font-sans antialiased; }
+  h1, h2, h3, .display { @apply font-display uppercase tracking-tight; }
+  fieldset { min-width: 0; }
+  :focus-visible { outline: 3px solid var(--color-signal); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 font-display text-lg font-bold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+@utility badge {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  &::before { content: ''; @apply size-1.5 rounded-full bg-current; }
+}
+
+@layer components {
+  .btn-primary { @apply btn bg-signal text-ink hover:bg-signal-dark; }
+  .btn-ghost { @apply btn border-2 border-current hover:bg-white/10; }
+  .wrap { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
+  .eyebrow { @apply font-display text-sm font-semibold uppercase tracking-[0.2em] text-signal; }
+  .badge-free { @apply badge bg-ok/15 text-[#1f7a37]; }
+  .badge-few { @apply badge bg-signal/15 text-signal-dark; }
+  .badge-full, .badge-closed { @apply badge bg-ink/10 text-ink/60; }
+  .badge-warn { @apply badge bg-earth/15 text-earth; }
+  .field { @apply flex flex-col gap-1 text-sm font-medium; }
+  .input { @apply w-full rounded-md border border-ink/20 bg-white px-3 py-2.5 text-base font-normal text-ink focus:border-signal focus:outline-none; }
+  .card { @apply rounded-xl bg-white p-5 shadow-sm ring-1 ring-ink/5; }
+}

@@ -1,0 +1,513 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { bikeModels, settings, tours } from '../../../data/seed';
+import { cardProvider } from '../../../lib/config';
+import { langFromParam, t } from '../../../i18n';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const T = t(lang);
+const W = T.wizard;
+
+const cardEnabled = cardProvider() !== 'off';
+// Texte für das Client-Script; Funktionen als Vorlagen mit {0},{1},{2}
+const tx = {
+  ...W,
+  capInfo: W.capInfo('{0}', '{1}' as any, '{2}' as any),
+  rest: W.rest('{0}'),
+  errBikes: W.errBikes('{0}' as any),
+  bankText: '',
+};
+const cfg = {
+  lang,
+  locale: T.locale,
+  tours: tours.map((x) => ({ id: x.id, name: T.tourName[x.id], own: x.priceOwnBike })),
+  bikeModels,
+  termin: Astro.url.searchParams.get('termin') ?? '',
+  tour: Number(Astro.url.searchParams.get('tour')) || 0,
+  weekdays: T.weekdays,
+  t: tx,
+};
+const linkCls = 'underline';
+---
+
+<Base title={T.meta.bookTitle} lang={lang} raiseFab>
+  <section class="bg-ink py-8 text-white">
+    <div class="wrap">
+      <h1 class="text-4xl font-bold sm:text-5xl">{W.h1}</h1>
+      <ol class="mt-5 grid grid-cols-5 gap-1.5" aria-label={W.progress}>
+        {
+          W.steps.map((s, i) => (
+            <li data-progress={i} class="group">
+              <span class="block h-1.5 rounded-full bg-white/20 group-data-[on]:bg-signal" />
+              <span class="mt-1.5 hidden text-xs text-white/60 group-data-[on]:text-white sm:block">
+                {i + 1}. {s}
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <div class="wrap grid gap-6 py-8 pb-32 lg:grid-cols-[1fr_340px] lg:pb-8">
+    <form id="wizard" novalidate data-cfg={JSON.stringify(cfg)} class="min-w-0">
+      <!-- 1 -->
+      <fieldset data-step="0" class="card space-y-5">
+        <legend class="sr-only">{W.steps[0]}</legend>
+        <h2 class="text-3xl font-bold">{W.s1}</h2>
+        <div class="grid gap-3 sm:grid-cols-2" id="tour-choice">
+          {
+            tours.map((x) => (
+              <label class="flex cursor-pointer flex-col rounded-lg p-4 ring-2 ring-ink/10 has-[:checked]:bg-signal/5 has-[:checked]:ring-signal">
+                <input type="radio" name="tourId" value={x.id} class="sr-only" required />
+                <span class="font-display text-2xl font-bold uppercase">{T.tourName[x.id]}</span>
+                <span class="text-sm text-ink/60">{T.home.ridingDays(x.ridingDays)} · {W.from} {x.priceOwnBike} €</span>
+              </label>
+            ))
+          }
+        </div>
+        <div>
+          <p class="mb-2 text-sm font-medium">{W.date}</p>
+          <div id="dep-list" class="max-h-[26rem] space-y-2 overflow-y-auto pr-1" role="radiogroup" aria-label={W.date}>
+            <p class="text-sm text-ink/60">{W.chooseTourFirst}</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- 2 -->
+      <fieldset data-step="1" class="card hidden space-y-5">
+        <legend class="sr-only">{W.steps[1]}</legend>
+        <h2 class="text-3xl font-bold">{W.s2}</h2>
+        <label class="field max-w-48">{W.count}
+          <select class="input" id="count" name="count"></select>
+        </label>
+        <p id="cap-info" class="text-sm text-ink/60"></p>
+        <div id="riders" class="space-y-4"></div>
+      </fieldset>
+
+      <!-- 3 -->
+      <fieldset data-step="2" class="card hidden space-y-5">
+        <legend class="sr-only">{W.steps[2]}</legend>
+        <h2 class="text-3xl font-bold">{W.s3}</h2>
+        <label class="field max-w-60">{W.singleRooms}
+          <select class="input" name="singleRooms" id="singleRooms"></select>
+        </label>
+        <div class="space-y-2">
+          <label class="field max-w-80">{W.transfer}
+            <select class="input" name="airport">
+              <option value="">{W.noTransfer}</option>
+              {settings.transferAirports.map((a) => <option value={a}>{a}</option>)}
+            </select>
+          </label>
+          <div id="transfer-dirs" class="hidden flex-wrap gap-4 text-sm">
+            <label class="flex items-center gap-2"><input type="checkbox" name="arrival" class="size-4 accent-signal" checked /> {W.arrival}</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="departure" class="size-4 accent-signal" checked /> {W.departure}</label>
+          </div>
+        </div>
+        <label class="field">{W.notes}
+          <textarea class="input" name="notes" rows="3" maxlength="2000" placeholder={W.notesPh}></textarea>
+        </label>
+      </fieldset>
+
+      <!-- 4 -->
+      <fieldset data-step="3" class="card hidden space-y-5">
+        <legend class="sr-only">{W.steps[3]}</legend>
+        <h2 class="text-3xl font-bold">{W.s4}</h2>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="field">{W.firstName}<input class="input" name="c_firstName" required autocomplete="given-name" /></label>
+          <label class="field">{W.lastName}<input class="input" name="c_lastName" required autocomplete="family-name" /></label>
+          <label class="field">{W.email}<input class="input" name="c_email" type="email" required autocomplete="email" /></label>
+          <label class="field">{W.phone}<input class="input" name="c_phone" type="tel" required autocomplete="tel" /></label>
+          <label class="field sm:col-span-2">{W.street}<input class="input" name="c_street" required autocomplete="street-address" /></label>
+          <label class="field">{W.zip}<input class="input" name="c_zip" required autocomplete="postal-code" /></label>
+          <label class="field">{W.city}<input class="input" name="c_city" required autocomplete="address-level2" /></label>
+          <label class="field">{W.country}
+            <select class="input" name="c_country" required autocomplete="country-name">
+              {W.countries.map((c) => <option>{c}</option>)}
+            </select>
+          </label>
+          <label class="field">{W.source}
+            <select class="input" name="source">
+              {W.sources.map((s, i) => <option value={i === 0 ? '' : s}>{s}</option>)}
+            </select>
+          </label>
+        </div>
+        <div class="space-y-2 text-sm">
+          {
+            (['agb', 'waiver', 'privacy'] as const).map((k) => (
+              <label class="flex items-start gap-2">
+                <input type="checkbox" name={k} required class="mt-0.5 size-4 shrink-0 accent-signal" />
+                <span>
+                  {W[k][0]}
+                  <a class={linkCls} href="#" target="_blank">{W[k][1]}</a>
+                  {W[k][2]}
+                </span>
+              </label>
+            ))
+          }
+        </div>
+      </fieldset>
+
+      <!-- 5 -->
+      <fieldset data-step="4" class="card hidden space-y-5">
+        <legend class="sr-only">{W.steps[4]}</legend>
+        <h2 class="text-3xl font-bold">{W.s5}</h2>
+        <div id="review" class="rounded-lg bg-sand p-4 text-sm"></div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          {
+            cardEnabled && (
+              <label class="flex cursor-pointer flex-col gap-1 rounded-lg p-4 ring-2 ring-ink/10 has-[:checked]:bg-signal/5 has-[:checked]:ring-signal">
+                <span class="flex items-center gap-2 font-semibold"><input type="radio" name="paymentMethod" value="card" checked class="accent-signal" /> {W.card}</span>
+                <span class="text-xs text-ink/60">{W.cardText}</span>
+              </label>
+            )
+          }
+          <label class="flex cursor-pointer flex-col gap-1 rounded-lg p-4 ring-2 ring-ink/10 has-[:checked]:bg-signal/5 has-[:checked]:ring-signal">
+            <span class="flex items-center gap-2 font-semibold"><input type="radio" name="paymentMethod" value="bank" checked={!cardEnabled} class="accent-signal" /> {W.bank}</span>
+            <span class="text-xs text-ink/60">{W.bankText(settings.holdDaysBank)}</span>
+          </label>
+        </div>
+        <p class="text-xs text-ink/60">{W.balanceNote}</p>
+      </fieldset>
+
+      <p id="error" role="alert" class="mt-4 hidden rounded-lg bg-red-50 p-3 text-sm font-medium text-red-800 ring-1 ring-red-200"></p>
+
+      <div class="mt-6 flex gap-3">
+        <button type="button" id="back" class="btn-ghost hidden text-ink">{W.back}</button>
+        <button type="button" id="next" class="btn-primary ml-auto">{W.next}</button>
+        <button type="submit" id="submit" class="btn-primary ml-auto hidden">{W.submit}</button>
+      </div>
+    </form>
+
+    <!-- Preis -->
+    <aside class="fixed inset-x-0 bottom-0 z-30 border-t border-ink/10 bg-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,.08)] lg:sticky lg:inset-auto lg:top-32 lg:self-start lg:rounded-xl lg:border-0 lg:p-5 lg:shadow-sm lg:ring-1 lg:ring-ink/5">
+      <p class="hidden font-display text-2xl font-bold uppercase lg:block">{W.summary}</p>
+      <p id="sum-dep" class="hidden text-sm text-ink/60 lg:block">{W.noDate}</p>
+      <ul id="sum-lines" class="mt-3 hidden space-y-1.5 text-sm lg:block"></ul>
+      <div class="flex items-end justify-between gap-4 lg:mt-4 lg:block lg:border-t lg:border-ink/10 lg:pt-4">
+        <div class="lg:flex lg:justify-between">
+          <span class="text-sm text-ink/60">{W.total}</span>
+          <span id="sum-total" class="block font-display text-3xl font-bold lg:inline">–</span>
+        </div>
+        <div class="text-right lg:mt-1 lg:flex lg:justify-between lg:text-left">
+          <span class="text-sm text-ink/60">{W.dueNow}</span>
+          <span id="sum-deposit" class="block font-display text-2xl font-bold text-signal-dark lg:inline">–</span>
+        </div>
+      </div>
+      <p id="sum-balance" class="mt-1 hidden text-xs text-ink/60 lg:block"></p>
+    </aside>
+  </div>
+</Base>
+
+<script>
+  type Dep = { code: string; start: string; end: string; tours: number[]; status: string; label: string; freePlaces: number; freeRentalBikes: number; rentalWarning: string | null };
+  type Rider = { firstName: string; lastName: string; birthDate: string; bike: 'own' | 'rental'; bikeModel: string; gear: boolean; gearSize: string; level: string };
+
+  const form = document.getElementById('wizard') as HTMLFormElement;
+  const cfg = JSON.parse(form.dataset.cfg!);
+  const L = cfg.t;
+  const fill = (s: string, ...a: (string | number)[]) => a.reduce<string>((r, v, i) => r.replace(`{${i}}`, String(v)), s);
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const steps = [...form.querySelectorAll<HTMLFieldSetElement>('[data-step]')];
+  const KEY = 'be-booking-v1';
+
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const eur = (n: number) => n.toLocaleString(cfg.locale, { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const fd = (iso: string) => iso.split('-').reverse().join('.');
+  const wd = (iso: string) => cfg.weekdays[new Date(iso + 'T12:00:00Z').getUTCDay()];
+
+  const state: { step: number; tourId: number; dep: string; riders: Rider[] } = { step: 0, tourId: 0, dep: '', riders: [] };
+  let deps: Dep[] = [];
+
+  // --- Persistenz (sessionStorage kann blockiert sein) ---
+  function persist() {
+    try {
+      const fields = Object.fromEntries([...new FormData(form)].filter(([k]) => !['tourId', 'count', 'dep'].includes(k) && !k.startsWith('r_')));
+      sessionStorage.setItem(KEY, JSON.stringify({ ...state, fields }));
+    } catch {}
+  }
+  function restore() {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+      if (!s) return;
+      Object.assign(state, { tourId: s.tourId, dep: s.dep, riders: s.riders || [] });
+      for (const [k, v] of Object.entries(s.fields || {})) {
+        const el = form.elements.namedItem(k) as any;
+        if (!el) continue;
+        if (el.type === 'checkbox') el.checked = v === 'on';
+        else el.value = String(v);
+      }
+    } catch {}
+  }
+
+  // --- Schritt 1 ---
+  async function loadDeps() {
+    const list = $('dep-list');
+    if (!state.tourId) return;
+    list.innerHTML = `<p class="text-sm text-ink/60">${esc(L.loading)}</p>`;
+    try {
+      deps = await (await fetch(`/api/departures?tour=${state.tourId}&lang=${cfg.lang}`)).json();
+    } catch {
+      list.innerHTML = `<p class="text-sm text-red-700">${esc(L.loadErr)}</p>`;
+      return;
+    }
+    let lastYear = '';
+    list.innerHTML = deps
+      .map((d) => {
+        const ok = d.status === 'free' || d.status === 'few';
+        const y = d.start.slice(0, 4);
+        const head = y !== lastYear ? `<p class="sticky top-0 z-10 bg-white py-1 font-display text-xl font-bold text-earth">${y}</p>` : '';
+        lastYear = y;
+        return `${head}<label class="flex items-center gap-3 rounded-lg p-3 ring-1 ring-ink/10 ${ok ? 'cursor-pointer hover:ring-ink/30 has-[:checked]:ring-2 has-[:checked]:ring-signal has-[:checked]:bg-signal/5' : 'opacity-50'}">
+          <input type="radio" name="dep" value="${d.code}" ${ok ? '' : 'disabled'} ${state.dep === d.code ? 'checked' : ''} class="accent-signal" />
+          <span class="w-10 font-display text-xl font-bold text-ink/40">${d.code}</span>
+          <span class="flex-1 text-sm font-medium">${wd(d.start)} ${fd(d.start)} – ${wd(d.end)} ${fd(d.end)}</span>
+          <span class="flex flex-wrap justify-end gap-1"><span class="badge-${d.status}">${esc(d.label)}</span>${d.rentalWarning ? `<span class="badge-warn">${esc(d.rentalWarning)}</span>` : ''}</span>
+        </label>`;
+      })
+      .join('');
+    if (state.dep && !deps.some((d) => d.code === state.dep && (d.status === 'free' || d.status === 'few'))) state.dep = '';
+    const sel = list.querySelector<HTMLElement>('input:checked')?.closest('label');
+    if (sel) list.scrollTop = sel.offsetTop - list.offsetTop - 40;
+    summary();
+  }
+  form.addEventListener('change', (e) => {
+    const el = e.target as HTMLInputElement;
+    if (el.name === 'tourId') {
+      state.tourId = Number(el.value);
+      loadDeps();
+    }
+    if (el.name === 'dep') state.dep = el.value;
+    if (el.name === 'airport') toggleTransfer();
+    if (el.name === 'count') setCount(Number(el.value));
+    if (el.name?.startsWith('r_')) readRiders();
+    if (el.name?.startsWith('r_bike') || el.name?.startsWith('r_gear_')) renderRiders();
+    persist();
+    requestQuote();
+  });
+  form.addEventListener('input', () => persist());
+
+  const currentDep = () => deps.find((d) => d.code === state.dep);
+  const tour = () => cfg.tours.find((x: any) => x.id === state.tourId);
+
+  // --- Schritt 2: Teilnehmer ---
+  const blankRider = (): Rider => ({ firstName: '', lastName: '', birthDate: '', bike: 'own', bikeModel: cfg.bikeModels[0], gear: false, gearSize: 'L', level: 'fortgeschritten' });
+  function setupCount() {
+    const d = currentDep();
+    const max = Math.max(1, Math.min(17, d?.freePlaces ?? 1));
+    if (!state.riders.length) state.riders = [blankRider()];
+    if (state.riders.length > max) state.riders = state.riders.slice(0, max);
+    $('count').innerHTML = Array.from({ length: max }, (_, i) => `<option ${i + 1 === state.riders.length ? 'selected' : ''}>${i + 1}</option>`).join('');
+    $('cap-info').textContent = d ? fill(L.capInfo, d.code, d.freePlaces, d.freeRentalBikes) : '';
+    renderRiders();
+  }
+  function setCount(n: number) {
+    readRiders();
+    while (state.riders.length < n) state.riders.push(blankRider());
+    state.riders = state.riders.slice(0, n);
+    renderRiders();
+    fillSingleRooms();
+  }
+  function readRiders() {
+    state.riders = state.riders.map((r, i) => {
+      const v = (k: string) => form.elements.namedItem(`r_${k}_${i}`) as HTMLInputElement | null;
+      return {
+        firstName: v('firstName')?.value ?? r.firstName,
+        lastName: v('lastName')?.value ?? r.lastName,
+        birthDate: v('birthDate')?.value ?? r.birthDate,
+        bike: ((form.elements.namedItem(`r_bike_${i}`) as RadioNodeList | null)?.value as Rider['bike']) || r.bike,
+        bikeModel: v('bikeModel')?.value ?? r.bikeModel,
+        gear: v('gear')?.checked ?? r.gear,
+        gearSize: v('gearSize')?.value ?? r.gearSize,
+        level: v('level')?.value ?? r.level,
+      };
+    });
+  }
+  function renderRiders() {
+    readRiders();
+    const opt = (vals: string[], sel: string, labels?: string[]) => vals.map((x, i) => `<option value="${esc(x)}" ${x === sel ? 'selected' : ''}>${esc(labels?.[i] ?? x)}</option>`).join('');
+    const maxBirth = `${new Date().getFullYear() - 10}-12-31`;
+    $('riders').innerHTML = state.riders
+      .map(
+        (r, i) => `<div class="rounded-lg p-4 ring-1 ring-ink/10">
+        <p class="mb-3 font-display text-xl font-bold uppercase">${esc(L.rider)} ${i + 1}${i === 0 ? ` <span class="text-sm font-normal normal-case text-ink/50">${esc(L.you)}</span>` : ''}</p>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <label class="field">${esc(L.firstName)}<input class="input" name="r_firstName_${i}" value="${esc(r.firstName)}" required /></label>
+          <label class="field">${esc(L.lastName)}<input class="input" name="r_lastName_${i}" value="${esc(r.lastName)}" required /></label>
+          <label class="field">${esc(L.birth)}<input class="input" type="date" name="r_birthDate_${i}" value="${esc(r.birthDate)}" min="1930-01-01" max="${maxBirth}" required /></label>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2 text-sm">
+          <label class="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 ring-1 ring-ink/15 has-[:checked]:ring-2 has-[:checked]:ring-signal"><input type="radio" name="r_bike_${i}" value="own" ${r.bike === 'own' ? 'checked' : ''} class="accent-signal" /> ${esc(L.ownBike)}</label>
+          <label class="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 ring-1 ring-ink/15 has-[:checked]:ring-2 has-[:checked]:ring-signal"><input type="radio" name="r_bike_${i}" value="rental" ${r.bike === 'rental' ? 'checked' : ''} class="accent-signal" /> ${esc(L.rentalBike)}</label>
+        </div>
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+          ${r.bike === 'rental' ? `<label class="field">${esc(L.model)}<select class="input" name="r_bikeModel_${i}">${opt(cfg.bikeModels, r.bikeModel)}</select></label>` : ''}
+          <label class="field">${esc(L.level)}<select class="input" name="r_level_${i}">${opt(['einsteiger', 'fortgeschritten', 'profi'], r.level, L.levels)}</select></label>
+          <div class="field">${esc(L.gear)}
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-2 py-2.5 font-normal"><input type="checkbox" name="r_gear_${i}" ${r.gear ? 'checked' : ''} class="size-4 accent-signal" /> ${esc(L.yes)}</label>
+              ${r.gear ? `<select class="input !w-auto" name="r_gearSize_${i}" aria-label="${esc(L.size)}">${opt(['S', 'M', 'L', 'XL', 'XXL'], r.gearSize)}</select>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>`,
+      )
+      .join('');
+  }
+
+  // --- Schritt 3 ---
+  function fillSingleRooms() {
+    const sel = $<HTMLSelectElement>('singleRooms');
+    const cur = Number(sel.value) || 0;
+    const n = state.riders.length || 1;
+    sel.innerHTML = Array.from({ length: n + 1 }, (_, i) => `<option value="${i}" ${i === Math.min(cur, n) ? 'selected' : ''}>${i}</option>`).join('');
+  }
+  function toggleTransfer() {
+    const on = !!(form.elements.namedItem('airport') as HTMLSelectElement).value;
+    $('transfer-dirs').classList.toggle('hidden', !on);
+    $('transfer-dirs').classList.toggle('flex', on);
+  }
+
+  // --- Payload & Preis ---
+  const val = (k: string) => ((form.elements.namedItem(k) as HTMLInputElement | null)?.value ?? '').trim();
+  const checked = (k: string) => !!(form.elements.namedItem(k) as HTMLInputElement | null)?.checked;
+  function payload() {
+    readRiders();
+    return {
+      lang: cfg.lang,
+      tourId: state.tourId,
+      departureCode: state.dep,
+      participants: state.riders,
+      singleRooms: Number(val('singleRooms')) || 0,
+      transfer: { airport: val('airport') || null, arrival: checked('arrival'), departure: checked('departure') },
+      notes: val('notes'),
+      source: val('source'),
+      contact: { firstName: val('c_firstName'), lastName: val('c_lastName'), email: val('c_email'), phone: val('c_phone'), street: val('c_street'), zip: val('c_zip'), city: val('c_city'), country: val('c_country') },
+      consents: { agb: checked('agb'), waiver: checked('waiver'), privacy: checked('privacy') },
+      paymentMethod: (form.elements.namedItem('paymentMethod') as HTMLInputElement | RadioNodeList).value,
+    };
+  }
+
+  let lastQuote: any = null;
+  let qTimer: number | undefined;
+  function requestQuote() {
+    clearTimeout(qTimer);
+    qTimer = window.setTimeout(async () => {
+      if (!state.tourId) return;
+      const p = payload();
+      if (!p.participants.length) p.participants = [blankRider()];
+      try {
+        const res = await fetch('/api/quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        if (res.ok) lastQuote = await res.json();
+      } catch {}
+      summary();
+    }, 150);
+  }
+  function summary() {
+    const d = currentDep();
+    const tr = tour();
+    $('sum-dep').textContent = tr && d ? `${tr.name} · ${L.date} ${d.code} · ${fd(d.start)} – ${fd(d.end)}` : tr ? `${tr.name} · ${L.chooseDate}` : L.noDate;
+    if (!lastQuote) return;
+    $('sum-lines').innerHTML = lastQuote.lines.map((l: any) => `<li class="flex justify-between gap-3"><span class="text-ink/70">${esc(l.label)}</span><span class="shrink-0 font-medium">${eur(l.amount)}</span></li>`).join('');
+    $('sum-total').textContent = eur(lastQuote.total);
+    $('sum-deposit').textContent = eur(lastQuote.deposit);
+    $('sum-balance').textContent = fill(L.rest, eur(lastQuote.balance));
+  }
+  function review() {
+    const p = payload();
+    const d = currentDep()!;
+    $('review').innerHTML = `<p class="font-semibold">${esc(tour().name)} · ${esc(L.date)} ${d.code} (${fd(d.start)} – ${fd(d.end)})</p>
+      <p class="mt-1">${p.participants.map((r) => esc(`${r.firstName} ${r.lastName}`) + (r.bike === 'rental' ? ` – ${esc(r.bikeModel)}` : ` – ${esc(L.ownBike)}`)).join('<br>')}</p>
+      <p class="mt-1 text-ink/60">${esc(L.contactLine)}: ${esc(p.contact.firstName)} ${esc(p.contact.lastName)}, ${esc(p.contact.email)}</p>`;
+  }
+
+  // --- Navigation ---
+  const errBox = $('error');
+  function showError(msg: string) {
+    errBox.textContent = msg;
+    errBox.classList.toggle('hidden', !msg);
+  }
+  function validStep(i: number): boolean {
+    showError('');
+    if (i === 0) {
+      if (!state.tourId) return showError(L.errTour), false;
+      if (!state.dep) return showError(L.errDate), false;
+    }
+    if (i === 1) {
+      const d = currentDep();
+      readRiders();
+      const rentals = state.riders.filter((r) => r.bike === 'rental').length;
+      if (d && rentals > d.freeRentalBikes) return showError(fill(L.errBikes, d.freeRentalBikes)), false;
+    }
+    const invalid = [...steps[i].querySelectorAll<HTMLInputElement>('input,select,textarea')].find((el) => !el.checkValidity());
+    if (invalid) {
+      invalid.reportValidity();
+      invalid.focus();
+      return false;
+    }
+    return true;
+  }
+  function go(i: number) {
+    state.step = i;
+    steps.forEach((s, k) => s.classList.toggle('hidden', k !== i));
+    document.querySelectorAll<HTMLElement>('[data-progress]').forEach((el) => el.toggleAttribute('data-on', Number(el.dataset.progress) <= i));
+    $('back').classList.toggle('hidden', i === 0);
+    $('next').classList.toggle('hidden', i === steps.length - 1);
+    $('submit').classList.toggle('hidden', i !== steps.length - 1);
+    if (i === 1) setupCount();
+    if (i === 2) fillSingleRooms();
+    if (i === 4) review();
+    persist();
+    requestQuote();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $('next').addEventListener('click', () => validStep(state.step) && go(state.step + 1));
+  $('back').addEventListener('click', () => go(state.step - 1));
+
+  let sending = false;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (sending || !validStep(4)) return;
+    for (let i = 0; i < 4; i++) if (!validStep(i)) return go(i);
+    sending = true;
+    const btn = $<HTMLButtonElement>('submit');
+    btn.disabled = true;
+    btn.textContent = L.sending;
+    try {
+      const res = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(j.error || L.errFail);
+        if (j.code === 'full') {
+          await loadDeps();
+          go(0);
+          showError(`${j.error || L.errFail} ${L.errOther}`);
+        }
+        return;
+      }
+      try {
+        sessionStorage.removeItem(KEY);
+      } catch {}
+      location.href = j.redirect;
+    } catch {
+      showError(L.errNet);
+    } finally {
+      sending = false;
+      btn.disabled = false;
+      btn.textContent = L.submit;
+    }
+  });
+
+  // --- Init ---
+  restore();
+  if (cfg.tour) state.tourId = cfg.tour;
+  if (cfg.termin) {
+    state.dep = cfg.termin;
+    if (!cfg.tour && !state.tourId) state.tourId = 5;
+  }
+  if (state.tourId) (form.querySelector(`input[name=tourId][value="${state.tourId}"]`) as HTMLInputElement).checked = true;
+  toggleTransfer();
+  if (state.tourId) loadDeps().then(() => go(0));
+  else go(0);
+</script>

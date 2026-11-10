@@ -1,0 +1,89 @@
+---
+// Zahlungsseite für Kartenzahlung ("Payment Wall").
+//  - PAYMENT_PROVIDER=monri → Formular wird automatisch an Monri (Hosted Payment Page) gesendet
+//  - PAYMENT_PROVIDER=mock  → Demo-Seite mit "Zahlung simulieren"
+import Base from '../../../layouts/Base.astro';
+import { getBooking } from '../../../lib/booking';
+import { cardProvider, siteUrl } from '../../../lib/config';
+import { monriFormFields, monriFormUrl } from '../../../lib/monri';
+import { eur } from '../../../lib/format';
+import { settings } from '../../../data/seed';
+import { langFromParam, prefix, t } from '../../../i18n';
+
+const lang = langFromParam(Astro.params.lang);
+if (!lang) return new Response(null, { status: 404 });
+const P = t(lang).pay;
+const p = prefix(lang);
+
+const ref = Astro.url.searchParams.get('ref') ?? '';
+const token = Astro.url.searchParams.get('token') ?? '';
+const failed = Astro.url.searchParams.has('failed');
+const b = getBooking(ref, token);
+if (!b) return new Response(t(lang).err.notFound, { status: 404 });
+const q = `ref=${encodeURIComponent(ref)}&token=${token}`;
+if (b.paymentStatus === 'paid') return Astro.redirect(`${p}/buchen/bestaetigung?${q}`);
+
+const expired = b.status === 'expired' || b.status === 'cancelled';
+const provider = cardProvider();
+const fields = provider === 'monri' && !expired ? monriFormFields(b, siteUrl()) : null;
+const minutesLeft = b.expiresAt ? Math.max(0, Math.round((new Date(b.expiresAt).getTime() - Date.now()) / 60000)) : 0;
+---
+
+<Base title={P.title(b.ref)} lang={lang}>
+  <section class="wrap max-w-xl py-12">
+    <p class="eyebrow">{P.booking} {b.ref}</p>
+    <h1 class="mt-2 text-5xl font-bold">{P.h1}</h1>
+
+    {
+      expired ? (
+        <div class="card mt-6">
+          <p class="font-semibold">{P.expiredH}</p>
+          <p class="mt-1 text-ink/70">{P.expiredText(settings.holdMinutesCard)}</p>
+          <a href={`${p}/buchen`} class="btn-primary mt-4">{P.rebook}</a>
+        </div>
+      ) : (
+        <div class="card mt-6 space-y-4">
+          {failed && <p class="rounded-md bg-red-50 p-3 text-sm font-medium text-red-800 ring-1 ring-red-200">{P.failed}</p>}
+          <div class="flex items-baseline justify-between">
+            <span class="text-ink/70">{P.payNow}</span>
+            <span class="font-display text-4xl font-bold">{eur(b.quote.deposit, lang)}</span>
+          </div>
+          <p class="text-sm text-ink/60">{P.info(eur(b.quote.total, lang), eur(b.quote.balance, lang), minutesLeft)}</p>
+
+          {fields ? (
+            <form id="monri" method="post" action={monriFormUrl()}>
+              {Object.entries(fields).map(([k, v]) => (
+                <input type="hidden" name={k} value={v} />
+              ))}
+              <button class="btn-primary w-full" type="submit">
+                {P.toMonri}
+              </button>
+              <p class="mt-2 text-center text-xs text-ink/50">{P.monriNote}</p>
+            </form>
+          ) : provider !== 'mock' ? (
+            <p class="rounded-md bg-red-50 p-3 text-sm text-red-800">{P.unavailable}</p>
+          ) : (
+            <div class="rounded-lg border-2 border-dashed border-signal/50 bg-signal/5 p-4">
+              <p class="font-display text-xl font-bold uppercase">{P.demoH}</p>
+              <p class="text-sm text-ink/70">{P.demoText}</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <a class="btn-primary" href={`/api/payments/mock?${q}&result=success`}>
+                  {P.demoOk}
+                </a>
+                <a class="btn-ghost text-ink" href={`/api/payments/mock?${q}&result=fail`}>
+                  {P.demoFail}
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+  </section>
+</Base>
+
+<script>
+  // Automatisch zu Monri weiterleiten (nur beim ersten Aufruf, nicht nach Fehlschlag).
+  const f = document.getElementById('monri') as HTMLFormElement | null;
+  if (f && !location.search.includes('failed')) f.submit();
+</script>
