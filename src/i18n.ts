@@ -8,6 +8,9 @@ export const langFromParam = (p: string | undefined): Lang | null => (p === unde
 export const toLang = (v: unknown): Lang => (v === 'en' ? 'en' : 'de');
 export const prefix = (l: Lang) => (l === 'en' ? '/en' : '');
 
+/** ISO-3166 alpha-2 – Monri requires ch_country as a code. Names come from Intl.DisplayNames. */
+export const COUNTRIES = ['AT', 'DE', 'CH', 'IT', 'SI', 'HR', 'BA', 'NL', 'BE', 'LU', 'CZ', 'SK', 'PL', 'HU', 'FR', 'GB', 'DK', 'SE', 'NO', 'US'];
+
 const de = {
   locale: 'de-DE',
   meta: {
@@ -174,7 +177,6 @@ const de = {
     zip: 'PLZ',
     city: 'Ort',
     country: 'Land',
-    countries: ['Österreich', 'Deutschland', 'Schweiz', 'Italien', 'Slowenien', 'Kroatien', 'Bosnien und Herzegowina', 'Niederlande', 'Tschechien', 'Polen', 'Anderes'],
     source: 'Wie hast du uns gefunden?',
     sources: ['Bitte wählen', 'Google', 'Instagram', 'Facebook', 'YouTube', 'Freunde / Empfehlung', 'Wiederholungstäter 😉', 'Sonstiges'],
     agb: ['Ich akzeptiere die ', 'AGB / Teilnahmebedingungen', ' inkl. Stornobedingungen.'],
@@ -436,7 +438,6 @@ const en: Dict = {
     zip: 'Postcode',
     city: 'City',
     country: 'Country',
-    countries: ['Austria', 'Germany', 'Switzerland', 'Italy', 'Slovenia', 'Croatia', 'Bosnia and Herzegovina', 'Netherlands', 'Czech Republic', 'Poland', 'United Kingdom', 'Other'],
     source: 'How did you find us?',
     sources: ['Please choose', 'Google', 'Instagram', 'Facebook', 'YouTube', 'Friends / recommendation', 'Returning rider 😉', 'Other'],
     agb: ['I accept the ', 'terms and conditions', ' including the cancellation policy.'],

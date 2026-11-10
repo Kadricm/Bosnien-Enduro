@@ -3,4 +3,4 @@ dist/
 .astro/
 .vercel/
 .env
-data/
+/data/

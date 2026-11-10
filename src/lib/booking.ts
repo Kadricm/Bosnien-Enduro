@@ -4,7 +4,7 @@ import { availability } from './availability';
 import { findBooking, loads, nextRef, tx, read, type Booking, type Contact, type Participant } from './db';
 import { quote, type Quote } from './pricing';
 import { cardProvider } from './config';
-import { t, toLang, type Lang } from '../i18n';
+import { COUNTRIES, t, toLang, type Lang } from '../i18n';
 
 export class BookingError extends Error {
   constructor(message: string, public code = 'invalid') {
@@ -74,12 +74,12 @@ export function parseBookingRequest(body: any): ParsedRequest {
     lastName: str(c.lastName, 80),
     email: str(c.email, 160).toLowerCase(),
     phone: str(c.phone, 40),
-    country: str(c.country, 60),
+    country: str(c.country, 2).toUpperCase(),
     city: str(c.city, 80),
     zip: str(c.zip, 20),
     street: str(c.street, 120),
   };
-  if (Object.values(contact).some((v) => !v)) throw new BookingError(E.contact);
+  if (Object.values(contact).some((v) => !v) || !COUNTRIES.includes(contact.country)) throw new BookingError(E.contact);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) throw new BookingError(E.email);
 
   const consents = body?.consents ?? {};

@@ -2,7 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import { bikeModels, settings, tours } from '../../../data/seed';
 import { cardProvider } from '../../../lib/config';
-import { langFromParam, t } from '../../../i18n';
+import { COUNTRIES, langFromParam, t } from '../../../i18n';
 
 const lang = langFromParam(Astro.params.lang);
 if (!lang) return new Response(null, { status: 404 });
@@ -124,7 +124,7 @@ const linkCls = 'underline';
           <label class="field">{W.city}<input class="input" name="c_city" required autocomplete="address-level2" /></label>
           <label class="field">{W.country}
             <select class="input" name="c_country" required autocomplete="country-name">
-              {W.countries.map((c) => <option>{c}</option>)}
+              {COUNTRIES.map((c) => <option value={c}>{new Intl.DisplayNames([T.locale], { type: 'region' }).of(c)}</option>)}
             </select>
           </label>
           <label class="field">{W.source}

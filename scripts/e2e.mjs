@@ -22,7 +22,7 @@ const booking = (code, tourId, riders, extra = {}) => ({
   participants: riders,
   singleRooms: 0,
   transfer: { airport: null },
-  contact: { firstName: 'Max', lastName: 'Muster', email: 'max@example.com', phone: '+43 1', street: 'Weg 1', zip: '5020', city: 'Salzburg', country: 'Österreich' },
+  contact: { firstName: 'Max', lastName: 'Muster', email: 'max@example.com', phone: '+43 1', street: 'Weg 1', zip: '5020', city: 'Salzburg', country: 'AT' },
   consents: { agb: true, waiver: true, privacy: true },
   paymentMethod: 'card',
   ...extra,

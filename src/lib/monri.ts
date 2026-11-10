@@ -36,7 +36,7 @@ export function monriFormFields(b: Booking, siteUrl: string) {
     ch_address: b.contact.street.slice(0, 100),
     ch_city: b.contact.city.slice(0, 30),
     ch_zip: b.contact.zip.slice(0, 9),
-    ch_country: b.contact.country.slice(0, 30),
+    ch_country: b.contact.country, // ISO alpha-2, validated in parseBookingRequest
     ch_phone: b.contact.phone.slice(0, 30),
     ch_email: b.contact.email.slice(0, 100),
     order_info: `Anzahlung ${b.ref}`.slice(0, 100),
